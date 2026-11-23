@@ -7,6 +7,8 @@ services:
     environment:
       DB_PATH: /data/records.db
       TZ: Asia/Shanghai
+      RETENTION_DAYS: "${RETENTION_DAYS:-0}"
+      ARCHIVE_CAPACITY_BYTES: "${ARCHIVE_CAPACITY_BYTES:-2000000}"
     volumes:
       - records:/data
     healthcheck:

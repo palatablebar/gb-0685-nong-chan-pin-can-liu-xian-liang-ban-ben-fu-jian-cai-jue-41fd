@@ -1,0 +1,52 @@
+{% extends "base.html" %}{% block content %}
+<div class="slips">
+  <section class="panel wide">
+    <header><h2>保留账</h2><span>{{ledger.totals.compressible}} 可压缩 / {{ledger.totals.retained}} 保留{% if stale %} · 来源已变，需重裁{% endif %}</span></header>
+    <div class="scroll"><table>
+      <thead><tr><th>批次</th><th>样本</th><th>出证</th><th>动作</th><th>可压缩</th><th>保留</th><th>阻塞对象</th></tr></thead>
+      <tbody>{% for b in ledger.batches %}<tr>
+        <td>{{b.batch}}<small>{{b.run_id}}</small></td><td class="num">{{b.samples}}</td>
+        <td>{{b.issued_at[:19] if b.issued_at else '—'}}</td>
+        <td><span class="verdict {{'pass' if b.action in ('压缩','已压缩') else 'uncertain'}}">{{b.action}}</span></td>
+        <td class="num">{{b.compressible|length}}</td><td class="num">{{b.retained|length}}</td>
+        <td>{% if b.blockers %}<span class="reject">{{b.blockers|length}} 项</span>{% else %}—{% endif %}</td>
+      </tr>{% else %}<tr><td colspan="7">无到期批次</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+  <section class="panel archive-slip">
+    <header><h2>裁决签</h2><span>V{{ledger.version or '—'}}</span></header>
+    <div class="fingerprint">{{ledger.fingerprint[:32]}}</div>
+    <dl>
+      <dt>保留账复核</dt><dd>{{ledger.decision}}</dd>
+      <dt>容量</dt><dd>{{ledger.usage.projected_bytes}} / {{ledger.archive_release.capacity_bytes}}</dd>
+      <dt>可回收</dt><dd>{{ledger.usage.reclaimable_bytes}}</dd>
+      <dt>归档放行</dt><dd>{{release.status}}</dd>
+    </dl>
+    <div class="signature">
+      {% if ledger.ledger_id %}<a href="/api/m8_retention/{{ledger.ledger_id}}/export.csv">下载保留账</a>{% endif %}
+      <button id="retain" data-disabled="{{'' if needs_adjudication else '1'}}">{{'重新裁决并压缩' if stale else '裁决并压缩'}}</button>
+      <button id="retain-sign" data-id="{{ledger.ledger_id or ''}}" data-version="{{ledger.version or 0}}" data-disabled="{{'' if ledger.ledger_id and not stale else '1'}}">复核保留账</button>
+    </div>
+  </section>
+  <section class="panel wide">
+    <header><h2>阻塞对象</h2><span>{{ledger.blockers|length}} 项</span></header>
+    <div class="scroll"><table><thead><tr><th>批次</th><th>样本</th><th>记录</th><th>行</th><th>阻塞</th><th>原因</th></tr></thead>
+      <tbody>{% for k in ledger.blockers %}<tr><td>{{k.batch}}</td><td>{{k.sample_id}}</td><td>{{k.id}}</td><td class="num">{{k.line}}</td><td>{{k.type}}</td><td>{{k.reason}}</td></tr>
+      {% else %}<tr><td colspan="6">无保留阻塞</td></tr>{% endfor %}</tbody></table></div>
+  </section>
+  <section class="panel wide">
+    <header><h2>可还原证据</h2><span>{{ledger.restorable|length}} 组</span></header>
+    <div class="scroll"><table><thead><tr><th>批次</th><th>样本</th><th>记录</th><th>复检关系</th><th>结论</th><th>动作</th></tr></thead>
+      <tbody>{% for g in ledger.restorable %}{% for r in g.records %}<tr>
+        <td>{{g.batch}}</td><td>{{g.sample_id}}</td><td>{{r.id}}</td>
+        <td>{{('← ' + r.retest_of) if r.retest_of else '原始'}}</td><td>{{r.verdict or '—'}}</td><td>{{r.action}}</td>
+      </tr>{% endfor %}{% else %}<tr><td colspan="6">无可还原证据</td></tr>{% endfor %}</tbody></table></div>
+  </section>
+  <section class="panel wide">
+    <header><h2>隔离原因</h2><span>{{ledger.quarantine|length}} 条</span></header>
+    <div class="scroll"><table><thead><tr><th>批次</th><th>记录</th><th>行</th><th>原因码</th><th>原值摘要</th></tr></thead>
+      <tbody>{% for q in ledger.quarantine %}<tr><td>{{q.run_id}}</td><td>{{q.id}}</td><td class="num">{{q.line}}</td><td>{{q.code}}</td><td><code>{{q.raw_sha256[:12]}}</code></td></tr>
+      {% else %}<tr><td colspan="5">无隔离记录</td></tr>{% endfor %}</tbody></table></div>
+  </section>
+</div>
+{% endblock %}

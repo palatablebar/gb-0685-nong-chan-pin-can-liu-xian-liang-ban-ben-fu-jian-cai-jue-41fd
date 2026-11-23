@@ -30,3 +30,24 @@ def test_reselect_existing_run_updates_visible_batch(client):
 
 def test_invalid_csv_type_rejected(client):
     assert client.post('/api/runs',json={'csv':123}).status_code==422
+
+def test_retention_ledger_lifecycle(client):
+    preview=client.get('/api/m8_retention');assert preview.status_code==200 and preview.get_json()['decision']=='预览'
+    first=client.post('/api/m8_retention',json={}).get_json();assert first['decision']=='待复核'
+    again=client.post('/api/m8_retention',json={}).get_json();assert again['ledger_id']==first['ledger_id']
+    export=client.get('/api/m8_retention/'+str(first['ledger_id'])+'/export.csv')
+    assert export.status_code==200 and '保留摘要' in export.data.decode('utf-8-sig')
+    approved=client.post('/api/m8_retention/'+str(first['ledger_id'])+'/review',
+                         json={'version':first['version'],'decision':'通过'})
+    assert approved.status_code==200 and approved.get_json()['version']==first['version']+1
+    stale=client.post('/api/m8_retention/'+str(first['ledger_id'])+'/review',
+                      json={'version':first['version'],'decision':'退回'})
+    assert stale.status_code==409
+
+def test_archive_waits_for_retention_review(client):
+    run_id=client.get('/api/runs').get_json()[0]['id']
+    ledger=client.post('/api/m8_retention',json={}).get_json()
+    assert client.get('/api/archive/'+run_id+'/export.csv').status_code==409
+    client.post('/api/m8_retention/'+str(ledger['ledger_id'])+'/review',
+                json={'version':ledger['version'],'decision':'通过'})
+    assert client.get('/api/archive/'+run_id+'/export.csv').status_code in (200,409)
